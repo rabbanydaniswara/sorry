@@ -90,8 +90,6 @@ export default function ApologyApp() {
         : ['responses', id];
       
       await deleteDoc(doc(db, ...pathParts));
-      
-      // Update UI locally without re-fetching
       setAdminData(prev => prev.filter(item => item.id !== id));
     } catch (error) {
       console.error("Delete error:", error);
@@ -230,9 +228,9 @@ export default function ApologyApp() {
       <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center p-6 text-center">
         <div className="bg-white p-12 rounded-3xl shadow-2xl max-w-md w-full border border-stone-200">
           <Clock className="w-20 h-20 text-stone-400 mx-auto mb-6" />
-          <h2 className="text-3xl font-serif font-bold text-stone-800 mb-4">Baiklah, aku mengerti</h2>
+          <h2 className="text-3xl font-serif font-bold text-stone-800 mb-4">I Understand.</h2>
           <p className="text-stone-600 leading-relaxed">
-            Aku bakal nunggu kamu selama yang kamu butuhin. Makasih ya udah ngasih tau. Aku harap kita bisa ngobrol lagi nanti, kapan pun kamu siap.
+            I will wait for you as long as it takes. Thank you for telling me.
           </p>
         </div>
       </div>
@@ -241,16 +239,17 @@ export default function ApologyApp() {
 
   // 3. POLAROID GALLERY (FORGIVEN)
   if (view === 'gallery') {
+    // Images are referenced relative to the public/ folder
     const polaroids = [
-      { src: "upload/5.png", caption: "Forever us", rotate: "rotate-2" },
-      { src: "upload/9.png", caption: "Adventures", rotate: "-rotate-1" },
-      { src: "upload/4.jpg", caption: "My favorite day", rotate: "rotate-3" },
-      { src: "./upload/3.jpg", caption: "Smile :)", rotate: "-rotate-2" },
-      { src: "./upload/1.jpg", caption: "Love you", rotate: "rotate-1" },
-      { src: "./upload/6.png", caption: "Always", rotate: "-rotate-3" },
-      // Duplicated to show "spread out" effect more
-      { src: "./upload/7.png", caption: "Sunshine", rotate: "rotate-2" },
-      { src: "./upload/2.jpg", caption: "Memories", rotate: "-rotate-2" },
+      { src: "/upload/1.jpg", caption: "Our World", rotate: "rotate-2" },
+      { src: "/upload/2.jpg", caption: "Magic", rotate: "-rotate-1" },
+      { src: "/upload/3.jpg", caption: "Adventures", rotate: "rotate-3" },
+      { src: "/upload/4.jpg", caption: "Running to you", rotate: "-rotate-2" },
+      { src: "/upload/5.png", caption: "Blossoms", rotate: "rotate-1" },
+      { src: "/upload/6.png", caption: "Mysteries", rotate: "-rotate-3" },
+      { src: "/upload/7.png", caption: "Top of the world", rotate: "rotate-2" },
+      { src: "/upload/8.png", caption: "Journey", rotate: "-rotate-2" },
+      { src: "/upload/9.png", caption: "Together", rotate: "rotate-1" },
     ];
 
     return (
@@ -259,7 +258,7 @@ export default function ApologyApp() {
         {/* Header */}
         <div className="py-12 text-center">
           <h1 className="font-serif text-5xl text-stone-800 font-bold mb-3">Our Memories</h1>
-          <p className="text-stone-600 italic text-lg">Terima kasih sudah mau memaafkan aku ❤️</p>
+          <p className="text-stone-600 italic text-lg">Thank you for giving us another chance ❤️</p>
         </div>
 
         {/* Scattered Grid - WIDE SPREAD */}
@@ -278,7 +277,16 @@ export default function ApologyApp() {
             >
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-8 bg-white/40 backdrop-blur-sm rotate-[-2deg] shadow-sm z-10" style={{border: '1px solid rgba(255,255,255,0.3)'}}></div>
               <div className="aspect-[4/5] w-full bg-stone-100 overflow-hidden mb-4 filter sepia-[0.2] hover:sepia-0 transition-all duration-500">
-                <img src={photo.src} alt={photo.caption} className="w-full h-full object-cover" />
+                <img 
+                    src={photo.src} 
+                    alt={photo.caption} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                        e.target.onerror = null; 
+                        e.target.style.display = 'none'; 
+                        e.target.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400 text-xs">Image not found<br>Check public/upload/</div>';
+                    }} 
+                />
               </div>
               <div className="absolute bottom-4 left-0 w-full text-center">
                 <p className="font-serif text-stone-700 text-xl opacity-90" style={{fontFamily: '"Caveat", "Courier New", cursive'}}>
@@ -296,12 +304,12 @@ export default function ApologyApp() {
               
               {!reasonSent ? (
                 <>
-                  <h3 className="text-xl font-bold text-stone-700 mb-4 font-serif">Oh ya, satu lagi...</h3>
+                  <h3 className="text-xl font-bold text-stone-700 mb-4 font-serif">One last thing...</h3>
                   <div className="flex flex-col gap-3">
                     <textarea 
                       value={reasonText}
                       onChange={(e) => setReasonText(e.target.value)}
-                      placeholder="Kenapa kamu mau maafin aku?"
+                      placeholder="Why are you forgive me?"
                       className="w-full p-4 rounded-xl border border-stone-200 bg-white/80 focus:ring-2 focus:ring-rose-200 focus:outline-none resize-none h-32 text-stone-700 placeholder:text-stone-400"
                     />
                     <button 
@@ -309,9 +317,9 @@ export default function ApologyApp() {
                       disabled={isSending || !reasonText.trim()}
                       className="bg-stone-800 hover:bg-black disabled:bg-stone-300 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg"
                     >
-                      {isSending ? 'Mengirim...' : (
+                      {isSending ? 'Sending...' : (
                         <>
-                          <span>Kirim</span>
+                          <span>Send Message</span>
                           <Send className="w-4 h-4" />
                         </>
                       )}
@@ -321,7 +329,7 @@ export default function ApologyApp() {
               ) : (
                 <div className="py-8 animate-fade-in">
                    <Heart className="w-12 h-12 text-rose-500 mx-auto mb-4 animate-bounce" />
-                   <p className="text-xl font-serif text-stone-800">Aku bakalan ngasih yang terbaik, Terima kasih banyak sayangkuuuu love youuuu ❤️❤️❤️❤️</p>
+                   <p className="text-xl font-serif text-stone-800">Thank you. I'll cherish your words.</p>
                 </div>
               )}
            </div>
@@ -350,10 +358,10 @@ export default function ApologyApp() {
           <HeartCrack className={`w-24 h-24 text-rose-500 ${adminClickCount > 0 ? 'animate-shake' : 'animate-pulse'}`} />
         </div>
         
-        <h1 className="text-4xl font-bold text-slate-800 mb-4 font-serif">Maaf banget.</h1>
+        <h1 className="text-4xl font-bold text-slate-800 mb-4 font-serif">I'm so sorry.</h1>
         <p className="text-slate-600 mb-10 text-lg leading-relaxed">
-           Aku yang salah. Kamu itu penting banget buat aku. <br/>
-           Kira-kira kamu masih bisa maafin aku?
+           I messed up. You mean everything to me. <br/>
+           Can you find it in your heart to forgive me?
         </p>
 
         <div className="space-y-4">
@@ -365,7 +373,7 @@ export default function ApologyApp() {
             {isSending ? <span className="animate-pulse">Saving...</span> : (
               <>
                 <Check className="w-6 h-6" />
-                <span>Ya aku maafin</span>
+                <span>Yes, I Forgive You</span>
               </>
             )}
           </button>
@@ -378,7 +386,7 @@ export default function ApologyApp() {
              {isSending ? <span className="animate-pulse">Saving...</span> : (
               <>
                 <Clock className="w-5 h-5" />
-                <span>Aku masih butuh waktu</span>
+                <span>I Still Need Time</span>
               </>
             )}
           </button>
