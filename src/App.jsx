@@ -242,15 +242,15 @@ export default function ApologyApp() {
   // 3. POLAROID GALLERY (FORGIVEN)
   if (view === 'gallery') {
     const polaroids = [
-      { src: "https://files.catbox.moe/nioq18.png", caption: "Forever us", rotate: "rotate-2" },
-      { src: "https://files.catbox.moe/h5ftq9.png", caption: "Adventures", rotate: "-rotate-1" },
-      { src: "https://files.catbox.moe/ilv06n.jpg", caption: "My favorite day", rotate: "rotate-3" },
-      { src: "https://files.catbox.moe/fksxv9.png", caption: "Smile :)", rotate: "-rotate-2" },
-      { src: "https://files.catbox.moe/icouit.jpg", caption: "Love you", rotate: "rotate-1" },
-      { src: "https://files.catbox.moe/xh1qed.png", caption: "Always", rotate: "-rotate-3" },
+      { src: "./upload/5.png", caption: "Forever us", rotate: "rotate-2" },
+      { src: "9.png", caption: "Adventures", rotate: "-rotate-1" },
+      { src: "4.jpg", caption: "My favorite day", rotate: "rotate-3" },
+      { src: "3.jpg", caption: "Smile :)", rotate: "-rotate-2" },
+      { src: "1.jpg", caption: "Love you", rotate: "rotate-1" },
+      { src: "6.png", caption: "Always", rotate: "-rotate-3" },
       // Duplicated to show "spread out" effect more
-      { src: "https://files.catbox.moe/no48g8.jpg", caption: "Sunshine", rotate: "rotate-2" },
-      { src: "https://files.catbox.moe/1ohxcs.png", caption: "Memories", rotate: "-rotate-2" },
+      { src: "7.png", caption: "Sunshine", rotate: "rotate-2" },
+      { src: "2.jpg", caption: "Memories", rotate: "-rotate-2" },
     ];
 
     return (
