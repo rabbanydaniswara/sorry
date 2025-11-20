@@ -294,7 +294,7 @@ export default function ApologyApp() {
               ) : (
                 <div className="py-8 animate-fade-in">
                    <Heart className="w-12 h-12 text-rose-500 mx-auto mb-4 animate-bounce" />
-                   <p className="text-xl font-serif text-stone-800">Thank you. I'll cherish your words.</p>
+                   <p className="text-xl font-serif text-stone-800">Aku bakalan ngasih yang terbaik, Terima kasih sayankuuu, love you ❤️❤️❤️</p>
                 </div>
               )}
            </div>
