@@ -1,417 +1,383 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, MessageCircle, Sparkles, Frown, Lock, Loader2, CheckCircle, Clock } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { Heart, Clock, X, Lock, Loader2, WifiOff, Trash2 } from 'lucide-react';
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, deleteDoc, doc } from "firebase/firestore";
 
-// ==========================================
-// 1. CONFIGURATION & CONTENT
-// ==========================================
+/* --- CONFIGURATION ---
+  Replace these URLs with your actual photos!
+*/
+const PHOTO_GALLERY = [
+  "https://images.unsplash.com/photo-1518621736915-f3b1c41bfd00?q=80&w=1000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1522609925277-66302040f57e?q=80&w=1000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1621887234322-660e8f592185?q=80&w=1000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1516589178581-a8078dbd638d?q=80&w=1000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1494774157365-9e04c6720e47?q=80&w=1000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?q=80&w=1000&auto=format&fit=crop",
+];
 
-const CONFIG = {
-  herName: "araa", 
-  yourName: "bani", 
-  apologyTitle: "I messed up, and I am sorry.",
-  apologyText: `
-    I've been doing a lot of thinking, and I realized how wrong I was. 
-    I never wanted to hurt you or make you feel unappreciated. 
-    You mean the world to me, and seeing you upset breaks my heart.
-    
-    Please let me make it up to you. I promise to listen better and be the person you deserve.
-  `,
-  photos: [
-    { url: "https://images.unsplash.com/photo-1518199266791-5375a83190b7?q=80&w=800&auto=format&fit=crop", caption: "Remember this day?" },
-    { url: "https://images.unsplash.com/photo-1523438885200-e635ba2c371e?q=80&w=800&auto=format&fit=crop", caption: "My favorite smile." },
-    { url: "https://images.unsplash.com/photo-1516589171835-59d917b58097?q=80&w=800&auto=format&fit=crop", caption: "We make a great team." },
-  ]
+// --- YOUR FIREBASE CONFIGURATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyA5wA9_Ign3ctmP9RHLF95Z3ovRndEfivc",
+  authDomain: "only-a-test-2b894.firebaseapp.com",
+  projectId: "only-a-test-2b894",
+  storageBucket: "only-a-test-2b894.firebasestorage.app",
+  messagingSenderId: "345905639102",
+  appId: "1:345905639102:web:763ea6201026106ca538ef",
+  measurementId: "G-BHRJ8TKHXR"
 };
 
-// ==========================================
-// 2. FIREBASE SETUP (READ CAREFULLY)
-// ==========================================
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-// IF RUNNING ON VERCEL: Replace the 'null' below with your actual Firebase object from the Firebase Console.
-// Example: const manualConfig = { apiKey: "AIza...", authDomain: "...", ... };
-const manualConfig = null; 
+// --- COMPONENTS ---
 
-// Automatic environment detection
-const getFirebaseConfig = () => {
-  if (manualConfig) return manualConfig;
-  if (typeof __firebase_config !== 'undefined') return JSON.parse(__firebase_config);
-  return null; // Will fail if not configured
-};
+// 1. Celebration Confetti
+const Confetti = () => (
+  <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden flex justify-center">
+    {[...Array(20)].map((_, i) => (
+      <div
+        key={i}
+        className="absolute animate-fall"
+        style={{
+          left: `${Math.random() * 100}%`,
+          top: `-10%`,
+          backgroundColor: ['#FFC0CB', '#FF69B4', '#FF1493', '#FFB6C1'][Math.floor(Math.random() * 4)],
+          width: '10px',
+          height: '20px',
+          animationDuration: `${Math.random() * 3 + 2}s`,
+          animationDelay: `${Math.random() * 2}s`,
+          transform: `rotate(${Math.random() * 360}deg)`,
+        }}
+      />
+    ))}
+  </div>
+);
 
-const firebaseConfig = getFirebaseConfig();
-// Initialize Firebase safely
-const app = firebaseConfig ? initializeApp(firebaseConfig) : null;
-const auth = app ? getAuth(app) : null;
-const db = app ? getFirestore(app) : null;
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'; // On Vercel, you can just use a string like 'my-app'
-
-// ==========================================
-// 3. MAIN COMPONENT
-// ==========================================
-
-export default function App() {
-  const [viewMode, setViewMode] = useState('loading'); // 'loading', 'her', 'admin'
-
-  // Determine which page to show based on URL
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('mode') === 'admin') {
-        setViewMode('admin');
-      } else {
-        setViewMode('her');
-      }
-    }
-  }, []);
-
-  // Error state if Firebase isn't configured
-  if (!app) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 text-center bg-gray-50 text-gray-800 font-sans">
-        <div>
-          <h1 className="text-xl font-bold mb-2">Setup Required</h1>
-          <p className="max-w-md mx-auto text-gray-600">
-            To host this on Vercel, you need to paste your Firebase Config keys into the code.<br/><br/>
-            Look for the <code>manualConfig</code> variable at the top of the file and fill it in.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (viewMode === 'loading') return null;
-
-  return viewMode === 'admin' ? <AdminPage /> : <HerPage />;
-}
-
-// ==========================================
-// 4. HER PAGE (The Website She Sees)
-// ==========================================
-
-function HerPage() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [localResponse, setLocalResponse] = useState(null);
-  const [hearts, setHearts] = useState([]);
+// 2. Admin Panel (Hidden)
+const AdminPanel = ({ onClose }) => {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [hasLoadedStatus, setHasLoadedStatus] = useState(false);
 
-  // Auth
   useEffect(() => {
-    const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-    };
-    initAuth();
-    return onAuthStateChanged(auth, setUser);
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribeAuth();
   }, []);
 
-  // NEW: Check Database on Load to prevent re-voting
   useEffect(() => {
-    if (!user) return;
-
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'apology_responses', 'her_choice');
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     
-    // Listen for existing answers
-    const unsubscribe = onSnapshot(docRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data.choice) {
-          setLocalResponse(data.choice); // Automatically set the view to the result
-        }
-      }
-      setHasLoadedStatus(true);
+    const q = query(collection(db, 'apology_responses'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })).sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+      setLogs(data);
+      setLoading(false);
+    }, (error) => {
+      console.warn("Could not fetch logs:", error.message);
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, [user]);
 
-  // Hearts Animation
-  useEffect(() => {
-    if (localResponse === 'yes') {
-      const interval = setInterval(() => {
-        const newHeart = {
-          id: Math.random(),
-          left: Math.random() * 100,
-          animationDuration: 2 + Math.random() * 3,
-          size: 20 + Math.random() * 30
-        };
-        setHearts(prev => [...prev, newHeart]);
-        setTimeout(() => {
-          setHearts(prev => prev.filter(h => h.id !== newHeart.id));
-        }, 5000);
-      }, 300);
-      return () => clearInterval(interval);
-    }
-  }, [localResponse]);
-
-  const saveChoice = async (choice) => {
-    // Prevent clicking if already answered
-    if (localResponse !== null) return;
-
-    setLocalResponse(choice);
-    if (!user) return;
-
-    setIsSaving(true);
-    try {
-      // We use setDoc with merge: true just in case, but logic prevents overwrite from UI
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'apology_responses', 'her_choice'), {
-        choice: choice,
-        timestamp: serverTimestamp(),
-        viewerName: CONFIG.herName 
-      });
-    } catch (err) {
-      console.error("Failed to save response:", err);
-    } finally {
-      setIsSaving(false);
+  const handleDelete = async (e, id) => {
+    // Stop the click from bubbling up or triggering other things
+    e.stopPropagation();
+    
+    if (window.confirm("Are you sure you want to delete this response?")) {
+      try {
+        await deleteDoc(doc(db, 'apology_responses', id));
+      } catch (error) {
+        console.error("Error deleting document: ", error);
+        alert("Could not delete. Check your internet connection or database rules.");
+      }
     }
   };
 
-  // 1. Envelope View
-  if (!isOpen) {
-    return (
-      <div className="min-h-screen bg-rose-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        {/* Background Hearts */}
-        <div className="absolute inset-0 opacity-20 pointer-events-none">
-          {[...Array(20)].map((_, i) => (
-            <Heart 
-              key={i} 
-              className="absolute text-rose-300"
-              style={{
-                top: `${Math.random() * 100}%`,
-                left: `${Math.random() * 100}%`,
-                transform: `scale(${0.5 + Math.random()}) rotate(${Math.random() * 360}deg)`
-              }} 
-            />
-          ))}
+  return (
+    // Increased z-index to 60 to be above confetti (which is z-50)
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+        <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+          <h3 className="font-bold text-slate-700 flex items-center gap-2">
+            <Lock size={16} /> Response Log
+          </h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full">
+            <X size={20} />
+          </button>
         </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {!user && (
+             <div className="p-3 bg-amber-50 text-amber-700 text-xs rounded mb-2 flex items-start gap-2">
+               <WifiOff size={14} className="mt-0.5" />
+               <div>
+                 <strong>Offline Mode:</strong> Responses are not being saved to the database because Authentication is not enabled in the Firebase Console.
+               </div>
+             </div>
+          )}
+          {loading ? (
+            <div className="flex justify-center p-4"><Loader2 className="animate-spin text-slate-400" /></div>
+          ) : logs.length === 0 && user ? (
+            <p className="text-center text-slate-500 py-4">No responses yet.</p>
+          ) : !user ? (
+             <p className="text-center text-slate-400 py-4 text-xs">Enable Anonymous Auth in Firebase Console to see logs.</p>
+          ) : (
+            logs.map((log) => (
+              <div key={log.id} className={`p-3 rounded-lg border group relative transition-all ${log.choice === 'forgive' ? 'bg-green-50 border-green-100' : 'bg-amber-50 border-amber-100'}`}>
+                <div className="flex justify-between items-start">
+                  <span className={`font-bold ${log.choice === 'forgive' ? 'text-green-700' : 'text-amber-700'}`}>
+                    {log.choice === 'forgive' ? 'Forgiven! 🎉' : 'Needs Time ⏳'}
+                  </span>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">
+                        {log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleDateString() : 'Just now'}
+                    </span>
+                    <button 
+                        onClick={(e) => handleDelete(e, log.id)}
+                        className="text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-full transition-all p-2"
+                        title="Delete this entry"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                   {log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleTimeString() : 'Processing...'}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 3. Main App
+export default function ApologyApp() {
+  const [view, setView] = useState('initial'); // initial, forgive, time
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [user, setUser] = useState(null);
+
+  // Auth initialization
+  useEffect(() => {
+    const initAuth = async () => {
+        try {
+            await signInAnonymously(auth);
+        } catch (error) {
+            console.warn("Note: Firebase Auth failed. App running in offline mode. (Enable Anonymous Auth in console to fix)");
+        }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  const handleSecretClick = () => {
+    setClickCount(prev => {
+      const newCount = prev + 1;
+      if (newCount === 3) {
+        setShowAdmin(true);
+        return 0;
+      }
+      return newCount;
+    });
+  };
+
+  const handleResponse = async (choice) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
+    // Only try to save if we are successfully logged in
+    if (user) {
+        try {
+            await addDoc(collection(db, 'apology_responses'), {
+                choice: choice,
+                timestamp: serverTimestamp(),
+                device: navigator.userAgent,
+                uid: user.uid
+            });
+        } catch (error) {
+            console.error("Error recording response", error);
+        }
+    } else {
+        console.log("User not logged in (Offline mode): Response not saved to DB, but UI will proceed.");
+    }
+
+    // UI Transition happens regardless of DB success/failure
+    if (choice === 'forgive') {
+      setView('forgive');
+    } else {
+      setView('time');
+    }
+    setIsSubmitting(false);
+  };
+
+  // --- RENDER: INITIAL STATE ---
+  if (view === 'initial') {
+    return (
+      <div className="min-h-screen bg-[#faf9f6] flex flex-col items-center justify-center p-6 relative overflow-hidden">
+        {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
         
-        <button 
-          onClick={() => setIsOpen(true)}
-          className="group relative bg-white p-8 md:p-12 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-1 border-2 border-rose-100 max-w-md w-full text-center z-10"
-        >
-          <div className="bg-rose-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-            <MessageCircle className="text-rose-500 w-8 h-8" />
+        <div className="max-w-md w-full bg-white rounded-[2rem] shadow-xl p-8 md:p-12 text-center border border-stone-100 transform transition-all hover:scale-[1.01] duration-500">
+          <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse-slow">
+            <Heart className="text-rose-400 fill-rose-400" size={32} />
           </div>
-          <h1 className="text-2xl font-serif text-gray-800 mb-2">For {CONFIG.herName}</h1>
-          <p className="text-gray-500 text-sm uppercase tracking-widest">A message for you</p>
-          <div className="mt-8 text-rose-400 text-xs animate-pulse">Tap to open</div>
-        </button>
+
+          <h1 className="text-3xl md:text-4xl font-serif text-stone-800 mb-4">
+            I'm so sorry.
+          </h1>
+          
+          <p className="text-stone-500 leading-relaxed mb-10">
+            I know I messed up, and I don't expect you to fix it immediately. 
+            You mean the world to me, and I just wanted to ask...
+          </p>
+
+          <div className="space-y-3">
+            <button 
+              onClick={() => handleResponse('forgive')}
+              disabled={isSubmitting}
+              className="w-full group relative bg-stone-900 text-white py-4 rounded-xl font-medium shadow-lg shadow-stone-200 hover:bg-stone-800 hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2 overflow-hidden"
+            >
+               {isSubmitting ? <Loader2 className="animate-spin" /> : (
+                 <>
+                   <span className="relative z-10">Yes, I forgive you</span>
+                   <Heart size={16} className="group-hover:scale-125 transition-transform text-rose-300 fill-rose-300" />
+                 </>
+               )}
+            </button>
+
+            <button 
+              onClick={() => handleResponse('time')}
+              disabled={isSubmitting}
+              className="w-full bg-white text-stone-500 py-4 rounded-xl font-medium border border-stone-200 hover:bg-stone-50 hover:border-stone-300 transition-all duration-300 flex items-center justify-center gap-2"
+            >
+              <Clock size={16} />
+              <span>I still need time</span>
+            </button>
+          </div>
+        </div>
+
+        <footer className="mt-12 text-stone-300 text-sm flex items-center gap-1">
+          Made with <Heart 
+            size={12} 
+            className={`fill-current cursor-pointer transition-colors duration-300 ${clickCount > 0 ? 'text-rose-400' : 'hover:text-stone-400'}`} 
+            onClick={handleSecretClick} 
+          /> for her
+        </footer>
+        
+        <style>{`
+          @keyframes pulse-slow {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+          }
+          .animate-pulse-slow {
+            animation: pulse-slow 3s infinite ease-in-out;
+          }
+        `}</style>
       </div>
     );
   }
 
-  // 2. Letter View
+  // --- RENDER: NEEDS TIME STATE ---
+  if (view === 'time') {
+    return (
+      <div className="min-h-screen bg-[#faf9f6] flex flex-col items-center justify-center p-6">
+        {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+        
+        <div className="max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Clock className="text-amber-400" size={28} />
+          </div>
+          <h2 className="text-2xl font-serif text-stone-800 mb-3">I Understand completely.</h2>
+          <p className="text-stone-500">
+            Take all the space you need. I'll be here whenever you're ready to talk. 
+            No pressure, just love.
+          </p>
+        </div>
+
+         <footer className="absolute bottom-6 text-stone-300 text-sm flex items-center gap-1">
+          <Heart size={12} className="fill-current cursor-pointer" onClick={handleSecretClick} />
+        </footer>
+      </div>
+    );
+  }
+
+  // --- RENDER: FORGIVEN (GALLERY) STATE ---
   return (
-    <div className="min-h-screen bg-[#faf7f5] text-gray-800 font-sans selection:bg-rose-200 pb-12">
-      {localResponse === 'yes' && (
-        <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-          {hearts.map(heart => (
-            <div
-              key={heart.id}
-              className="absolute text-rose-500"
-              style={{
-                left: `${heart.left}%`,
-                bottom: '-50px',
-                fontSize: `${heart.size}px`,
-                animation: `floatUp ${heart.animationDuration}s linear forwards`
-              }}
-            >
-              ❤️
+    <div className="min-h-screen bg-white pb-20">
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+      <Confetti />
+      
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-stone-100 px-6 py-4 flex items-center justify-center">
+        <div className="flex items-center gap-2 text-rose-500 animate-bounce">
+          <Heart className="fill-rose-500" size={20} />
+          <span className="font-bold tracking-tight">Thank you, Love!</span>
+        </div>
+      </header>
+
+      {/* Gallery Grid */}
+      <main className="p-4 max-w-4xl mx-auto">
+        <p className="text-center text-stone-400 text-sm mb-8 mt-4">
+          Here are some of our best moments...
+        </p>
+        
+        <div className="columns-1 sm:columns-2 md:columns-3 gap-4 space-y-4">
+          {PHOTO_GALLERY.map((src, index) => (
+            <div key={index} className="break-inside-avoid rounded-xl overflow-hidden group relative shadow-sm hover:shadow-md transition-all duration-500">
+              <img 
+                src={src} 
+                alt="Us" 
+                className="w-full h-auto object-cover transform group-hover:scale-105 transition-transform duration-700 ease-in-out"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-4">
+                <Heart className="text-white fill-white/80" size={20} />
+              </div>
             </div>
           ))}
         </div>
-      )}
 
-      {/* Header Image */}
-      <div className="h-64 md:h-80 bg-rose-900 relative flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 bg-black/30 z-10" />
-        <img 
-          src="https://images.unsplash.com/photo-1518621736915-f3b1c41bfd00?q=80&w=1200&auto=format&fit=crop" 
-          alt="Background" 
-          className="absolute inset-0 w-full h-full object-cover opacity-60"
-        />
-        <div className="relative z-20 text-center px-4">
-          <h1 className="text-4xl md:text-6xl font-serif text-white mb-4 tracking-tight">I'm Sorry.</h1>
-          <p className="text-rose-100 text-lg md:text-xl font-light">Please hear me out.</p>
+        <div className="mt-16 text-center">
+          <button 
+            onClick={() => window.location.reload()} 
+            className="text-stone-400 text-sm hover:text-stone-600 underline decoration-stone-300 underline-offset-4"
+          >
+            Back to start
+          </button>
         </div>
-      </div>
+      </main>
+      
+      <footer className="mt-12 text-center text-stone-300 text-sm pb-6">
+         <Heart size={12} className="inline fill-current cursor-pointer" onClick={handleSecretClick} />
+      </footer>
 
-      <div className="max-w-2xl mx-auto px-6 py-12 -mt-10 relative z-30">
-        {/* Letter */}
-        <div className="bg-white rounded-xl shadow-xl p-8 md:p-12 border border-gray-100 mb-12">
-          <div className="flex justify-center mb-6">
-            <Heart className="text-rose-500 w-8 h-8 fill-current" />
-          </div>
-          <h2 className="text-2xl font-serif text-gray-900 mb-6 text-center">{CONFIG.apologyTitle}</h2>
-          <div className="prose prose-rose mx-auto text-gray-600 leading-relaxed whitespace-pre-line text-lg">
-            {CONFIG.apologyText}
-          </div>
-          <p className="text-right mt-8 font-serif text-xl italic text-gray-800">— {CONFIG.yourName}</p>
-        </div>
-
-        {/* Photos */}
-        <div className="mb-16">
-          <div className="flex items-center justify-center gap-2 mb-8">
-            <Sparkles className="w-5 h-5 text-rose-400" />
-            <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400">Us at our best</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {CONFIG.photos.map((photo, idx) => (
-              <div key={idx} className={`group relative overflow-hidden rounded-2xl shadow-md aspect-[4/3] ${idx === 2 ? 'md:col-span-2 md:aspect-[2/1]' : ''}`}>
-                <img src={photo.url} alt={photo.caption} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
-                  <p className="text-white font-medium">{photo.caption}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Interaction Buttons */}
-        <div className="text-center py-8">
-          {/* Show loading spinner while checking database so we don't flash buttons briefly */}
-          {!hasLoadedStatus ? (
-             <div className="flex justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-rose-400" />
-             </div>
-          ) : localResponse === null ? (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-              <h3 className="text-2xl font-serif text-gray-800">Will you forgive me?</h3>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <button 
-                  onClick={() => saveChoice('yes')}
-                  disabled={isSaving}
-                  className="w-full sm:w-auto px-8 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-medium shadow-lg hover:shadow-rose-200 transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isSaving && <Loader2 className="animate-spin w-4 h-4" />}
-                  <span>Yes, I forgive you</span>
-                </button>
-                <button 
-                  onClick={() => saveChoice('no')}
-                  disabled={isSaving}
-                  className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-gray-50 text-gray-500 border border-gray-200 rounded-full font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  I need more time
-                </button>
-              </div>
-            </div>
-          ) : localResponse === 'yes' ? (
-            <div className="bg-green-50 border border-green-100 rounded-2xl p-8 animate-in zoom-in duration-500">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Heart className="w-8 h-8 text-green-600 fill-current" />
-              </div>
-              <h3 className="text-2xl font-serif text-green-800 mb-2">Thank you, {CONFIG.herName}!</h3>
-              <p className="text-green-600">I won't let you down. Let's go get dinner soon?</p>
-              <p className="text-xs text-green-500 mt-4 opacity-70 uppercase tracking-wide font-bold">Response Recorded</p>
-            </div>
-          ) : (
-            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 animate-in zoom-in duration-500">
-               <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Frown className="w-8 h-8 text-gray-500" />
-              </div>
-              <h3 className="text-xl font-medium text-gray-800 mb-2">I understand.</h3>
-              <p className="text-gray-600">I know trust takes time to rebuild. I'm here whenever you're ready.</p>
-              <p className="text-xs text-gray-400 mt-4 opacity-70 uppercase tracking-wide font-bold">Response Recorded</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes floatUp {
-          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-          100% { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// ==========================================
-// 5. ADMIN PAGE (Your Status Dashboard)
-// ==========================================
-
-function AdminPage() {
-  const [user, setUser] = useState(null);
-  const [dbStatus, setDbStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Auth & Listener
-  useEffect(() => {
-    const init = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-    };
-    init();
-
-    const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (u) {
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'apology_responses', 'her_choice');
-        const unsubscribeDb = onSnapshot(docRef, (snapshot) => {
-          if (snapshot.exists()) {
-            setDbStatus(snapshot.data());
-          } else {
-            setDbStatus(null);
+       <style>{`
+          @keyframes fall {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
           }
-          setLoading(false);
-        });
-        return () => unsubscribeDb();
-      }
-    });
-    return () => unsubscribeAuth();
-  }, []);
-
-  const statusColor = !dbStatus ? 'bg-gray-100 text-gray-500' : dbStatus.choice === 'yes' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200';
-  const statusIcon = !dbStatus ? <Clock className="w-6 h-6" /> : dbStatus.choice === 'yes' ? <CheckCircle className="w-6 h-6" /> : <Lock className="w-6 h-6" />;
-
-  return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 p-6 font-sans">
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center gap-2 mb-8 text-gray-400">
-          <Lock className="w-4 h-4" />
-          <span className="text-xs font-bold tracking-widest uppercase">Private Dashboard</span>
-        </div>
-
-        <h1 className="text-2xl font-bold mb-6">Apology Status</h1>
-
-        <div className={`p-8 rounded-2xl border ${statusColor} transition-colors duration-500 mb-6 flex flex-col items-center text-center gap-4 shadow-sm`}>
-          <div className="p-4 bg-white/50 rounded-full">
-            {statusIcon}
-          </div>
-          <div>
-            <h2 className="text-xl font-bold mb-1">
-              {!dbStatus ? "Waiting for response..." : dbStatus.choice === 'yes' ? "She forgave you!" : "She needs more time"}
-            </h2>
-            <p className="opacity-80 text-sm">
-              {!dbStatus ? "Check back later." : "Response recorded."}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Raw Data</h3>
-          {loading ? (
-            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-          ) : dbStatus ? (
-            <pre className="bg-gray-50 p-4 rounded-lg text-xs overflow-auto">
-              {JSON.stringify(dbStatus, null, 2)}
-            </pre>
-          ) : (
-            <div className="text-sm text-gray-400 italic">No data found in database yet.</div>
-          )}
-        </div>
-      </div>
+          .animate-fall {
+            animation-timing-function: linear;
+          }
+        `}</style>
     </div>
   );
 }
