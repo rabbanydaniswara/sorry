@@ -1,12 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Heart, HeartCrack, Clock, Upload, Image as ImageIcon } from 'lucide-react';
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-// --- FIREBASE CONFIGURATION ---
-// Using the environment configuration ensures compatibility with the provided auth token
-const firebaseConfig = JSON.parse(__firebase_config);
+// --- CONFIGURATION ---
+// 1. If running in this chat preview, we use the system config.
+// 2. If you deploy to Vercel, REPLACE 'JSON.parse(__firebase_config)' below 
+//    with your actual firebaseConfig object from the Firebase Console.
+const firebaseConfig = typeof __firebase_config !== 'undefined' 
+  ? JSON.parse(__firebase_config) 
+  : {
+      apiKey: "YOUR_API_KEY_HERE",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.firebasestorage.app",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -17,70 +28,70 @@ const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 export default function ApologyApp() {
-  const [user, setUser] = useState(null);
-  const [view, setView] = useState('question'); // 'question', 'gallery', 'waiting'
+  // State for View and Logic
+  const [view, setView] = useState('question'); // 'question' | 'waiting' | 'gallery'
   const [localImages, setLocalImages] = useState([]);
   const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef(null);
 
-  // --- ROBUST ANONYMOUS AUTHENTICATION ---
+  // --- SILENT STARTUP ---
+  // We start the connection immediately when the app opens, 
+  // but we don't block the UI or show a login screen.
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        // 1. Try Custom Token (if provided by environment)
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          // 2. Default to Anonymous
-          await signInAnonymously(auth);
-        }
-      } catch (error) {
-        console.warn("Initial auth failed, forcing anonymous fallback...", error);
-        // 3. Safety Fallback: Ensure anonymous auth happens if custom token fails
-        try {
-          await signInAnonymously(auth);
-        } catch (anonError) {
-          console.error("CRITICAL: Anonymous auth failed", anonError);
-        }
-      }
-    };
-    
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    signInAnonymously(auth).catch((err) => {
+      // We ignore errors here to keep the app "quiet". 
+      // We will try to connect again when she clicks a button if needed.
+      console.log("Background connection pending...");
     });
-    return () => unsubscribe();
   }, []);
 
-  // --- SAVE RESPONSE TO DATABASE ---
-  const sendResponse = async (answer) => {
-    if (!user) return;
-
+  // --- ROBUST SEND FUNCTION ---
+  // This function ensures the message gets sent even if the app loaded slowly
+  const saveAnswerToDatabase = async (answerText) => {
+    setIsSending(true);
     try {
-      const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'apology_responses');
+      // 1. Ensure we are connected before writing
+      let currentUser = auth.currentUser;
+      if (!currentUser) {
+        const credential = await signInAnonymously(auth);
+        currentUser = credential.user;
+      }
+
+      // 2. Determine the collection path
+      // If in the chat preview: Use strict path. 
+      // If deployed: Use a simple 'responses' collection.
+      let collectionRef;
+      if (typeof __app_id !== 'undefined') {
+         collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'apology_responses');
+      } else {
+         collectionRef = collection(db, 'responses');
+      }
+
+      // 3. Write the document
       await addDoc(collectionRef, {
-        answer: answer,
+        answer: answerText,
         timestamp: serverTimestamp(),
-        userId: user.uid // Anonymous User ID
+        userId: currentUser.uid
       });
-    } catch (e) {
-      console.error("Error saving response: ", e);
-      alert("Connection error. Please try again."); // Simple fallback feedback
+      
+      console.log("Answer saved:", answerText);
+
+    } catch (error) {
+      console.error("Could not save answer:", error);
+      // Even if the database fails, we still let her see the next screen
+      // so the "Apology" experience isn't ruined by tech issues.
     }
+    setIsSending(false);
   };
 
-  // --- EVENT HANDLERS ---
+  // --- BUTTON HANDLERS ---
   const handleForgive = async () => {
-    setIsSending(true);
-    await sendResponse('Yes, Forgiven');
-    setIsSending(false);
+    await saveAnswerToDatabase('Yes, Forgiven');
     setView('gallery');
   };
 
   const handleTime = async () => {
-    setIsSending(true);
-    await sendResponse('Needs Time');
-    setIsSending(false);
+    await saveAnswerToDatabase('Needs Time');
     setView('waiting');
   };
 
@@ -95,15 +106,15 @@ export default function ApologyApp() {
     setLocalImages(prev => [...prev, ...newImages]);
   };
 
-  // --- VIEW 1: THE QUESTION ---
+  // --- VIEW 1: THE APOLOGY ---
   if (view === 'question') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-100 to-pink-200 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        {/* Background Hearts */}
+        
+        {/* Background Animation */}
         <div className="absolute inset-0 pointer-events-none opacity-40">
-            <Heart className="absolute top-10 left-10 text-pink-400 w-12 h-12 animate-bounce" style={{animationDuration: '3s'}} />
-            <Heart className="absolute bottom-20 right-20 text-red-300 w-16 h-16 animate-bounce" style={{animationDuration: '4s'}} />
-            <Heart className="absolute top-1/3 right-10 text-rose-400 w-8 h-8 animate-pulse" />
+            <Heart className="absolute top-10 left-10 text-pink-400 w-12 h-12 animate-bounce duration-1000" />
+            <Heart className="absolute bottom-20 right-20 text-red-300 w-16 h-16 animate-bounce duration-[3000ms]" />
         </div>
 
         <div className="bg-white/90 backdrop-blur-sm p-8 rounded-3xl shadow-2xl max-w-md w-full z-10 text-center border border-white/50">
@@ -117,10 +128,11 @@ export default function ApologyApp() {
           </p>
 
           <div className="space-y-3">
+            {/* FORGIVE BUTTON */}
             <button 
               onClick={handleForgive}
-              disabled={!user || isSending}
-              className="w-full bg-rose-500 hover:bg-rose-600 disabled:bg-rose-300 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-3"
+              disabled={isSending}
+              className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3"
             >
               {isSending ? (
                 <span className="animate-pulse">Sending...</span>
@@ -132,12 +144,13 @@ export default function ApologyApp() {
               )}
             </button>
 
+            {/* TIME BUTTON */}
             <button 
               onClick={handleTime}
-              disabled={!user || isSending}
-              className="w-full bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-gray-600 font-semibold py-4 px-6 rounded-xl shadow border border-gray-200 transition-all flex items-center justify-center gap-3"
+              disabled={isSending}
+              className="w-full bg-white hover:bg-gray-50 text-gray-600 font-semibold py-4 px-6 rounded-xl shadow border border-gray-200 transition-all active:scale-95 flex items-center justify-center gap-3"
             >
-              {isSending ? (
+               {isSending ? (
                 <span className="animate-pulse">Sending...</span>
               ) : (
                 <>
@@ -152,11 +165,11 @@ export default function ApologyApp() {
     );
   }
 
-  // --- VIEW 2: WAITING ---
+  // --- VIEW 2: NEEDS TIME ---
   if (view === 'waiting') {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="bg-white p-10 rounded-3xl shadow-xl max-w-md w-full border border-slate-100">
+        <div className="bg-white p-10 rounded-3xl shadow-xl max-w-md w-full border border-slate-100 animate-fade-in">
           <Clock className="w-16 h-16 text-slate-400 mx-auto mb-6" />
           <h2 className="text-2xl font-bold text-slate-800 mb-3">I Understand.</h2>
           <p className="text-slate-600">
@@ -167,10 +180,10 @@ export default function ApologyApp() {
     );
   }
 
-  // --- VIEW 3: GALLERY (FORGIVEN) ---
+  // --- VIEW 3: GALLERY (SUCCESS) ---
   return (
-    <div className="min-h-screen bg-stone-50">
-      {/* Simple Header */}
+    <div className="min-h-screen bg-stone-50 animate-fade-in">
+      {/* Header */}
       <header className="bg-white sticky top-0 z-30 shadow-sm border-b border-stone-100 px-4 py-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -189,7 +202,7 @@ export default function ApologyApp() {
             />
             <button 
               onClick={() => fileInputRef.current.click()}
-              className="flex items-center gap-2 bg-stone-900 hover:bg-black text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all shadow-sm"
+              className="flex items-center gap-2 bg-stone-900 hover:bg-black text-white px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm"
             >
               <Upload className="w-4 h-4" />
               Select Photo Folder
@@ -204,24 +217,21 @@ export default function ApologyApp() {
           <p className="text-stone-500">Here is why I love you.</p>
         </div>
 
-        {/* Images Grid */}
+        {/* Gallery Grid */}
         <div className="columns-1 sm:columns-2 md:columns-3 gap-4 space-y-4">
-          {/* Uploaded Images */}
+          {/* User Uploaded Images */}
           {localImages.map((src, index) => (
             <div key={`local-${index}`} className="break-inside-avoid rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all">
               <img src={src} alt="Memory" className="w-full h-auto object-cover" />
             </div>
           ))}
 
-          {/* Placeholders (Only if no uploads yet) */}
+          {/* Default Placeholders (Only shown if no folder is loaded yet) */}
           {localImages.length === 0 && (
              <>
                 <Placeholder src="https://images.unsplash.com/photo-1518568814500-bf0f8d125f46?q=80&w=800&auto=format&fit=crop" />
                 <Placeholder src="https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?q=80&w=800&auto=format&fit=crop" />
                 <Placeholder src="https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?q=80&w=800&auto=format&fit=crop" />
-                <Placeholder src="https://images.unsplash.com/photo-1474552226712-ac0f0961a954?q=80&w=800&auto=format&fit=crop" />
-                <Placeholder src="https://images.unsplash.com/photo-1523438885200-e635ba2c371e?q=80&w=800&auto=format&fit=crop" />
-                <Placeholder src="https://images.unsplash.com/photo-1511285560982-1356c11d4606?q=80&w=800&auto=format&fit=crop" />
              </>
           )}
         </div>
@@ -229,8 +239,8 @@ export default function ApologyApp() {
         {localImages.length === 0 && (
             <div className="mt-12 text-center p-10 bg-white rounded-2xl border border-dashed border-stone-300">
                 <ImageIcon className="w-12 h-12 text-stone-300 mx-auto mb-3" />
-                <p className="text-stone-500 font-medium">No folder selected yet.</p>
-                <p className="text-stone-400 text-sm">Click the button in the top right to view your memories.</p>
+                <p className="text-stone-500 font-medium">No folder selected.</p>
+                <p className="text-stone-400 text-sm">Click the button in the top right to view your photos.</p>
             </div>
         )}
       </main>
@@ -238,7 +248,6 @@ export default function ApologyApp() {
   );
 }
 
-// Simple Helper Component for cleaner code
 function Placeholder({ src }) {
     return (
         <div className="break-inside-avoid rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all mb-4">
