@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, HeartCrack, Clock, Lock, Check, RefreshCw, Image as ImageIcon, Send, MessageSquare } from 'lucide-react';
+import { Heart, HeartCrack, Clock, Lock, Check, RefreshCw, Image as ImageIcon, Send, MessageSquare, Trash2 } from 'lucide-react';
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, signInAnonymously } from "firebase/auth";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from "firebase/firestore";
+import { getFirestore, collection, addDoc, deleteDoc, doc, getDocs, query, orderBy, limit, serverTimestamp } from "firebase/firestore";
 
 // --- CONFIGURATION ---
 const firebaseConfig = {
@@ -67,7 +67,7 @@ export default function ApologyApp() {
         q = query(colRef); 
       } else {
         const colRef = collection(db, 'responses');
-        q = query(colRef, orderBy('timestamp', 'desc'), limit(20)); // Increased limit
+        q = query(colRef, orderBy('timestamp', 'desc'), limit(50));
       }
 
       const snapshot = await getDocs(q);
@@ -77,6 +77,25 @@ export default function ApologyApp() {
     } catch (error) {
       console.error("Admin fetch error:", error);
       alert("Could not fetch data. Check console.");
+    }
+  };
+
+  // --- ADMIN: DELETE RESPONSE ---
+  const handleDelete = async (id) => {
+    if (!confirm("Are you sure you want to delete this response?")) return;
+
+    try {
+      const pathParts = typeof __app_id !== 'undefined' 
+        ? ['artifacts', appId, 'public', 'data', 'apology_responses', id] 
+        : ['responses', id];
+      
+      await deleteDoc(doc(db, ...pathParts));
+      
+      // Update UI locally without re-fetching
+      setAdminData(prev => prev.filter(item => item.id !== id));
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert("Could not delete. Check console.");
     }
   };
 
@@ -164,11 +183,11 @@ export default function ApologyApp() {
                   const isYes = item.answer.includes('Yes');
                   
                   return (
-                    <div key={item.id} className={`p-4 rounded-lg border flex justify-between items-center ${
+                    <div key={item.id} className={`p-4 rounded-lg border flex justify-between items-center group ${
                       isReason ? 'bg-blue-50 border-blue-200' :
                       isYes ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'
                     }`}>
-                      <div>
+                      <div className="flex-grow">
                         <span className={`font-bold ${
                           isReason ? 'text-blue-700' :
                           isYes ? 'text-green-700' : 'text-orange-700'
@@ -179,12 +198,20 @@ export default function ApologyApp() {
                           User ID: {item.userId?.slice(0, 6)}...
                         </p>
                       </div>
-                      <div className="text-right">
-                         <span className="text-xs text-gray-400">
+                      
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs text-gray-400">
                           {item.timestamp?.seconds 
                             ? new Date(item.timestamp.seconds * 1000).toLocaleString() 
                             : 'Just now'}
-                         </span>
+                        </span>
+                        <button 
+                          onClick={() => handleDelete(item.id)}
+                          className="p-2 text-red-300 hover:text-red-600 hover:bg-red-100 rounded-full transition-all opacity-50 group-hover:opacity-100"
+                          title="Delete Response"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -203,9 +230,9 @@ export default function ApologyApp() {
       <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center p-6 text-center">
         <div className="bg-white p-12 rounded-3xl shadow-2xl max-w-md w-full border border-stone-200">
           <Clock className="w-20 h-20 text-stone-400 mx-auto mb-6" />
-          <h2 className="text-3xl font-serif font-bold text-stone-800 mb-4">Baiklah, aku mengerti.</h2>
+          <h2 className="text-3xl font-serif font-bold text-stone-800 mb-4">Baiklah, aku mengerti</h2>
           <p className="text-stone-600 leading-relaxed">
-            aku akan menunggu kamu selama yang diperlukan. Terima kasih sudah memberi tahu aku.
+            Aku bakal nunggu kamu selama yang kamu butuhin. Makasih ya udah ngasih tau. Aku harap kita bisa ngobrol lagi nanti, kapan pun kamu siap.
           </p>
         </div>
       </div>
@@ -220,7 +247,7 @@ export default function ApologyApp() {
       { src: "https://files.catbox.moe/ilv06n.jpg", caption: "My favorite day", rotate: "rotate-3" },
       { src: "https://files.catbox.moe/fksxv9.png", caption: "Smile :)", rotate: "-rotate-2" },
       { src: "https://files.catbox.moe/icouit.jpg", caption: "Love you", rotate: "rotate-1" },
-      { src: "https://files.catbox.moe/jd9z6g.jpg", caption: "Always", rotate: "-rotate-3" },
+      { src: "https://files.catbox.moe/xh1qed.png", caption: "Always", rotate: "-rotate-3" },
       // Duplicated to show "spread out" effect more
       { src: "https://files.catbox.moe/no48g8.jpg", caption: "Sunshine", rotate: "rotate-2" },
       { src: "https://files.catbox.moe/1ohxcs.png", caption: "Memories", rotate: "-rotate-2" },
@@ -232,7 +259,7 @@ export default function ApologyApp() {
         {/* Header */}
         <div className="py-12 text-center">
           <h1 className="font-serif text-5xl text-stone-800 font-bold mb-3">Our Memories</h1>
-          <p className="text-stone-600 italic text-lg">Terima kasih banyak sudah memberikan aku kesempatan lagi sayangkuuuuu ❤️</p>
+          <p className="text-stone-600 italic text-lg">Terima kasih sudah mau memaafkan aku ❤️</p>
         </div>
 
         {/* Scattered Grid - WIDE SPREAD */}
@@ -269,12 +296,12 @@ export default function ApologyApp() {
               
               {!reasonSent ? (
                 <>
-                  <h3 className="text-xl font-bold text-stone-700 mb-4 font-serif">Satu lagi...</h3>
+                  <h3 className="text-xl font-bold text-stone-700 mb-4 font-serif">Oh ya, satu lagi...</h3>
                   <div className="flex flex-col gap-3">
                     <textarea 
                       value={reasonText}
                       onChange={(e) => setReasonText(e.target.value)}
-                      placeholder="Kenapa kamu masih mau maafin aku?"
+                      placeholder="Kenapa kamu mau maafin aku?"
                       className="w-full p-4 rounded-xl border border-stone-200 bg-white/80 focus:ring-2 focus:ring-rose-200 focus:outline-none resize-none h-32 text-stone-700 placeholder:text-stone-400"
                     />
                     <button 
@@ -282,7 +309,7 @@ export default function ApologyApp() {
                       disabled={isSending || !reasonText.trim()}
                       className="bg-stone-800 hover:bg-black disabled:bg-stone-300 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg"
                     >
-                      {isSending ? 'Sending...' : (
+                      {isSending ? 'Mengirim...' : (
                         <>
                           <span>Kirim</span>
                           <Send className="w-4 h-4" />
@@ -294,7 +321,7 @@ export default function ApologyApp() {
               ) : (
                 <div className="py-8 animate-fade-in">
                    <Heart className="w-12 h-12 text-rose-500 mx-auto mb-4 animate-bounce" />
-                   <p className="text-xl font-serif text-stone-800">Aku bakalan ngasih yang terbaik, Terima kasih sayankuuu, love you ❤️❤️❤️</p>
+                   <p className="text-xl font-serif text-stone-800">Aku bakalan ngasih yang terbaik, Terima kasih banyak sayangkuuuu love youuuu ❤️❤️❤️❤️</p>
                 </div>
               )}
            </div>
@@ -338,7 +365,7 @@ export default function ApologyApp() {
             {isSending ? <span className="animate-pulse">Saving...</span> : (
               <>
                 <Check className="w-6 h-6" />
-                <span>Ya, aku maafin</span>
+                <span>Ya aku maafin</span>
               </>
             )}
           </button>
