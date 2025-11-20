@@ -242,9 +242,9 @@ export default function ApologyApp() {
   // 3. POLAROID GALLERY (FORGIVEN)
   if (view === 'gallery') {
     const polaroids = [
-      { src: "./upload/5.png", caption: "Forever us", rotate: "rotate-2" },
-      { src: "./upload/9.png", caption: "Adventures", rotate: "-rotate-1" },
-      { src: "./upload/4.jpg", caption: "My favorite day", rotate: "rotate-3" },
+      { src: "upload/5.png", caption: "Forever us", rotate: "rotate-2" },
+      { src: "upload/9.png", caption: "Adventures", rotate: "-rotate-1" },
+      { src: "upload/4.jpg", caption: "My favorite day", rotate: "rotate-3" },
       { src: "./upload/3.jpg", caption: "Smile :)", rotate: "-rotate-2" },
       { src: "./upload/1.jpg", caption: "Love you", rotate: "rotate-1" },
       { src: "./upload/6.png", caption: "Always", rotate: "-rotate-3" },
